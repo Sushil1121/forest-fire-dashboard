@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Forest Fire Risk Monitor</title>
   <style>
     body {
@@ -24,9 +24,14 @@
       width: 200px;
     }
     .value {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
-      margin-top: 10px;
+      margin-top: 5px;
+    }
+    .risk {
+      font-size: 14px;
+      color: #555;
+      margin-top: 5px;
     }
     .alert {
       margin-top: 30px;
@@ -43,6 +48,10 @@
       background-color: #f8d7da;
       color: #721c24;
     }
+    .moderate {
+      background-color: #fff3cd;
+      color: #856404;
+    }
   </style>
 </head>
 <body>
@@ -51,33 +60,43 @@
   <div class="sensor-box">
     <h3>Temperature (°C)</h3>
     <div class="value" id="temp">--</div>
+    <div class="risk" id="tempRisk">--</div>
   </div>
 
   <div class="sensor-box">
     <h3>Humidity (%)</h3>
     <div class="value" id="hum">--</div>
+    <div class="risk" id="humRisk">--</div>
   </div>
 
   <div class="sensor-box">
-    <h3>MQ135 (Air Quality)</h3>
+    <h3>MQ135 (CO₂ Index)</h3>
     <div class="value" id="mq135">--</div>
+    <div class="risk" id="mq135Risk">--</div>
   </div>
 
   <div class="sensor-box">
     <h3>MQ4 (Methane)</h3>
     <div class="value" id="mq4">--</div>
+    <div class="risk" id="mq4Risk">--</div>
   </div>
 
-  <div id="alertBox" class="alert safe">🔥 Environment is Safe</div>
+  <div id="alertBox" class="alert safe">✅ Environment is Safe</div>
 
   <script>
     const SHEET_URL = "AKfycbzRjzZNvmYPMzwSa5oWdf2chqwK164cohqlyRlscWNfjLo85oJwpVHzrAerOWizTyw";
+
+    function getRiskPercent(value, min, max) {
+      if (value <= min) return 0;
+      if (value >= max) return 100;
+      return Math.round(((value - min) / (max - min)) * 100);
+    }
 
     async function fetchData() {
       try {
         const res = await fetch(SHEET_URL);
         const data = await res.text();
-        const rows = data.split("\n");
+        const rows = data.trim().split("\n");
         const latest = rows[rows.length - 1].split(",");
 
         let temp = parseFloat(latest[0]);
@@ -90,11 +109,26 @@
         document.getElementById("mq135").textContent = mq135;
         document.getElementById("mq4").textContent = mq4;
 
+        // Risk Ranges
+        let tempRisk = getRiskPercent(temp, 35, 50);
+        let humRisk = 100 - getRiskPercent(hum, 30, 80);  // less humidity = higher risk
+        let mq135Risk = getRiskPercent(mq135, 300, 700);
+        let mq4Risk = getRiskPercent(mq4, 300, 600);
+
+        document.getElementById("tempRisk").textContent = `🔥 Risk: ${tempRisk}%`;
+        document.getElementById("humRisk").textContent = `🔥 Risk: ${humRisk}%`;
+        document.getElementById("mq135Risk").textContent = `🔥 Risk: ${mq135Risk}%`;
+        document.getElementById("mq4Risk").textContent = `🔥 Risk: ${mq4Risk}%`;
+
+        const totalRisk = (tempRisk + humRisk + mq135Risk + mq4Risk) / 4;
         const alertBox = document.getElementById("alertBox");
 
-        if (temp > 40 || mq135 > 400 || mq4 > 500) {
-          alertBox.textContent = "🔥 WARNING: Risk of Fire Detected!";
+        if (totalRisk > 70) {
+          alertBox.textContent = "🔥 HIGH RISK: Immediate Attention Required!";
           alertBox.className = "alert danger";
+        } else if (totalRisk > 40) {
+          alertBox.textContent = "⚠️ MODERATE RISK: Stay Alert";
+          alertBox.className = "alert moderate";
         } else {
           alertBox.textContent = "✅ Environment is Safe";
           alertBox.className = "alert safe";
@@ -104,8 +138,8 @@
       }
     }
 
-    setInterval(fetchData, 5000); // Update every 5 seconds
-    fetchData(); // Initial fetch
+    setInterval(fetchData, 5000);
+    fetchData();
   </script>
 </body>
 </html>
